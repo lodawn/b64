@@ -1,0 +1,1051 @@
+<!DOCTYPE html>
+<html lang="ko" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Base64 클립보드 디코더 & URL 바로가기</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts: Inter & Noto Sans KR -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+KR:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'Noto Sans KR', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'monospace'],
+                    },
+                    colors: {
+                        brand: {
+                            50: '#eff6ff',
+                            100: '#dbeafe',
+                            500: '#3b82f6',
+                            600: '#2563eb',
+                            700: '#1d4ed8',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            font-family: 'Inter', 'Noto Sans KR', sans-serif;
+        }
+        /* 커스텀 스크롤바 */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(156, 163, 175, 0.4);
+            border-radius: 9999px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(156, 163, 175, 0.7);
+        }
+        @keyframes pulse-subtle {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.015); }
+        }
+        .animate-pulse-subtle {
+            animation: pulse-subtle 2.5s infinite ease-in-out;
+        }
+    </style>
+</head>
+<body class="bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 min-h-screen transition-colors duration-200 flex flex-col selection:bg-blue-500 selection:text-white">
+
+    <!-- 상단 네비게이션 바 -->
+    <header class="sticky top-0 z-30 backdrop-blur-md bg-white/80 dark:bg-slate-900/80 border-b border-slate-200 dark:border-slate-800">
+        <div class="max-w-4xl mx-auto px-3 sm:px-6 h-16 flex items-center justify-between gap-2">
+            <div class="flex items-center gap-2 sm:gap-3 min-w-0 shrink-0">
+                <div class="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-br from-blue-600 to-indigo-600 flex items-center justify-center text-white shadow-md shadow-blue-500/20 shrink-0">
+                    <i data-lucide="link-2" class="w-5 h-5"></i>
+                </div>
+                <div class="min-w-0">
+                    <h1 class="font-bold text-base sm:text-lg tracking-tight flex items-center gap-1.5 whitespace-nowrap">
+                        Base64 <span class="text-blue-600 dark:text-blue-400">URL 런처</span>
+                    </h1>
+                    <p class="text-xs text-slate-500 dark:text-slate-400 hidden sm:block truncate">클립보드 Base64 즉시 디코딩 및 원클릭 이동 도구</p>
+                </div>
+            </div>
+
+            <div class="flex items-center gap-1.5 sm:gap-3 shrink-0">
+                <!-- 탭 전환 버튼 (디코더 / 인코더) -->
+                <div class="bg-slate-100 dark:bg-slate-800 p-1 rounded-xl flex items-center text-xs sm:text-sm font-medium shrink-0">
+                    <button id="tabBtnDecode" onclick="switchTab('decode')" class="px-2.5 sm:px-3 py-1.5 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm transition-all whitespace-nowrap">
+                        디코딩
+                    </button>
+                    <button id="tabBtnEncode" onclick="switchTab('encode')" class="px-2.5 sm:px-3 py-1.5 rounded-lg text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-all whitespace-nowrap">
+                        인코딩 도구
+                    </button>
+                </div>
+
+                <!-- 다크모드 토글 -->
+                <button id="themeToggleBtn" onclick="toggleTheme()" class="p-2 sm:p-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors shrink-0" title="테마 변경">
+                    <i data-lucide="moon" class="w-4 h-4 hidden dark:block"></i>
+                    <i data-lucide="sun" class="w-4 h-4 block dark:hidden"></i>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- 메인 컨텐츠 영역 -->
+    <main class="flex-1 max-w-4xl w-full mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-6">
+
+        <!-- ==================== 1. 디코딩 탭 섹션 ==================== -->
+        <div id="sectionDecode" class="space-y-6">
+
+            <!-- 상단 원클릭 클립보드 붙여넣기 히어로 카드 -->
+            <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 sm:p-6 shadow-sm relative overflow-hidden">
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-5">
+                    <div>
+                        <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-800/60 mb-2 whitespace-nowrap">
+                            <kbd class="font-mono font-semibold">Ctrl+V</kbd> 또는 <kbd class="font-mono font-semibold">Cmd+V</kbd> 페이지 어디서나 지원
+                        </span>
+                        <h2 class="text-lg sm:text-xl font-bold text-slate-900 dark:text-white">클립보드 Base64 빠른 실행</h2>
+                        <p class="text-sm text-slate-500 dark:text-slate-400 mt-0.5">클립보드에 복사된 Base64 문자열을 읽어와 즉시 변환하고 링크를 추출합니다.</p>
+                    </div>
+
+                    <!-- 자동 열기 토글 옵션 -->
+                    <label class="flex items-center gap-2.5 cursor-pointer select-none bg-slate-50 dark:bg-slate-800/70 px-3.5 py-2.5 rounded-xl border border-slate-200/80 dark:border-slate-700/60 self-start sm:self-center shrink-0">
+                        <input type="checkbox" id="autoOpenToggle" onchange="saveAutoOpenSetting()" class="sr-only peer">
+                        <div class="w-9 h-5 bg-slate-300 dark:bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all relative peer-checked:bg-blue-600 shrink-0"></div>
+                        <span class="text-xs sm:text-sm font-medium text-slate-700 dark:text-slate-300 whitespace-nowrap">붙여넣기 시 URL 자동 열기</span>
+                    </label>
+                </div>
+
+                <!-- 대형 클립보드 읽기 버튼 & 샘플 버튼 -->
+                <div class="flex flex-col sm:flex-row gap-3">
+                    <button onclick="pasteFromClipboard()" class="flex-1 py-4 px-5 sm:px-6 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 active:scale-[0.99] text-white font-semibold text-sm sm:text-lg shadow-lg shadow-blue-500/25 flex items-center justify-center gap-2.5 transition-all group whitespace-nowrap">
+                        <i data-lucide="clipboard-paste" class="w-5 h-5 sm:w-6 sm:h-6 group-hover:scale-110 transition-transform shrink-0"></i>
+                        <span>클립보드에서 붙여넣기 및 디코딩</span>
+                    </button>
+                    <button onclick="loadSampleBase64()" class="py-3 sm:py-4 px-4 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-medium text-sm flex items-center justify-center gap-2 transition-colors shrink-0 whitespace-nowrap" title="테스트용 샘플 Base64 URL 불러오기">
+                        <i data-lucide="sparkles" class="w-4 h-4 text-amber-500 shrink-0"></i>
+                        <span>샘플 테스트</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- URL 감지 시 최우선 표시되는 바로가기 배너 (기본 숨김) -->
+            <div id="urlDetectedBanner" class="hidden bg-gradient-to-br from-emerald-500/10 via-teal-500/10 to-blue-500/10 dark:from-emerald-500/15 dark:via-teal-500/10 dark:to-blue-500/15 border-2 border-emerald-500/50 dark:border-emerald-500/40 rounded-2xl p-5 sm:p-6 shadow-md transition-all">
+                <div class="flex flex-col gap-4">
+                    <div class="flex items-start justify-between gap-3">
+                        <div class="flex items-center gap-2.5">
+                            <span class="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-500 text-white shadow-sm shrink-0">
+                                <i data-lucide="external-link" class="w-4 h-4"></i>
+                            </span>
+                            <div>
+                                <div class="flex items-center gap-2">
+                                    <h3 class="font-bold text-emerald-950 dark:text-emerald-200 text-base sm:text-lg">유효한 URL이 감지되었습니다!</h3>
+                                    <span id="urlCountBadge" class="px-2 py-0.5 text-xs font-semibold rounded-full bg-emerald-500/20 text-emerald-700 dark:text-emerald-300">1개</span>
+                                </div>
+                                <p class="text-xs text-slate-600 dark:text-slate-400">아래 버튼을 클릭하거나 <kbd class="px-1.5 py-0.5 rounded bg-white/80 dark:bg-slate-800 font-mono text-[11px] border border-slate-300 dark:border-slate-700">Enter</kbd> 키를 눌러 바로 이동할 수 있습니다.</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 대표 URL 표시 박스 -->
+                    <div class="bg-white/90 dark:bg-slate-900/90 border border-emerald-500/30 rounded-xl p-3.5 flex items-center justify-between gap-3">
+                        <div class="flex items-center gap-2.5 min-w-0 flex-1">
+                            <i data-lucide="globe" class="w-4 h-4 text-emerald-500 shrink-0"></i>
+                            <a id="primaryUrlDisplay" href="#" target="_blank" rel="noopener noreferrer" class="font-mono text-sm sm:text-base font-medium text-emerald-700 dark:text-emerald-300 hover:underline truncate block">
+                                https://example.com
+                            </a>
+                        </div>
+                        <button onclick="copyPrimaryUrl()" class="p-2 rounded-lg text-slate-500 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors shrink-0" title="URL만 복사">
+                            <i data-lucide="copy" class="w-4 h-4"></i>
+                        </button>
+                    </div>
+
+                    <!-- 주요 액션 버튼 (새 탭 / 현재 탭) -->
+                    <div class="flex flex-col sm:flex-row gap-3">
+                        <a id="btnOpenNewTab" href="#" target="_blank" rel="noopener noreferrer" class="flex-1 py-3.5 px-5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-sm sm:text-base shadow-md shadow-emerald-600/20 flex items-center justify-center gap-2 transition-all animate-pulse-subtle">
+                            <span>URL 바로가기 (새 탭)</span>
+                            <i data-lucide="arrow-up-right" class="w-5 h-5"></i>
+                        </a>
+                        <a id="btnOpenCurrentTab" href="#" class="py-3.5 px-5 rounded-xl bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-700 font-semibold text-sm sm:text-base flex items-center justify-center gap-2 transition-all">
+                            <i data-lucide="corner-down-right" class="w-4 h-4"></i>
+                            <span>현재 탭에서 이동</span>
+                        </a>
+                    </div>
+
+                    <!-- 다중 URL이 감지되었을 경우 목록 표시 -->
+                    <div id="multipleUrlsContainer" class="hidden pt-3 border-t border-emerald-500/20 space-y-2">
+                        <p class="text-xs font-semibold text-slate-600 dark:text-slate-400">감지된 모든 URL 목록:</p>
+                        <div id="multipleUrlsList" class="space-y-1.5 max-h-48 overflow-y-auto pr-1"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 입력 및 출력 그리드 영역 -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                
+                <!-- 왼쪽: Base64 입력창 -->
+                <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 flex flex-col shadow-sm">
+                    <div class="flex items-center justify-between mb-3">
+                        <label for="base64Input" class="text-sm font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-2">
+                            <i data-lucide="file-code" class="w-4 h-4 text-blue-500"></i>
+                            <span>Base64 입력 텍스트</span>
+                        </label>
+                        <div class="flex items-center gap-1">
+                            <span id="inputStatusBadge" class="hidden text-xs px-2 py-0.5 rounded-md font-medium"></span>
+                            <button onclick="clearDecodeFields()" class="text-xs text-slate-400 hover:text-rose-500 px-2 py-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors flex items-center gap-1">
+                                <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                                <span>지우기</span>
+                            </button>
+                        </div>
+                    </div>
+                    <textarea
+                        id="base64Input"
+                        rows="6"
+                        placeholder="여기에 Base64 텍스트를 붙여넣거나 직접 입력하세요...&#10;(여러 줄의 Base64 텍스트나 공백이 포함되어 있어도 자동으로 처리합니다)"
+                        oninput="handleManualInput()"
+                        class="w-full flex-1 bg-slate-50 dark:bg-slate-950/70 border border-slate-200 dark:border-slate-800 rounded-xl p-3.5 font-mono text-sm text-slate-800 dark:text-slate-200 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 resize-y transition-all"
+                    ></textarea>
+                    <div class="mt-2.5 flex items-center justify-between text-xs text-slate-400">
+                        <span>URL-Safe Base64 (<code class="font-mono">-</code>, <code class="font-mono">_</code>) 및 패딩(<code class="font-mono">=</code>) 생략 자동 보정</span>
+                        <span id="inputCharCount">0자</span>
+                    </div>
+                </div>
+
+                <!-- 오른쪽: 디코딩 결과창 -->
+                <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 flex flex-col shadow-sm">
+                    <div class="flex items-center justify-between mb-3">
+                        <label for="decodedOutput" class="text-sm font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-2">
+                            <i data-lucide="check-circle-2" class="w-4 h-4 text-emerald-500"></i>
+                            <span>디코딩 결과 (UTF-8)</span>
+                        </label>
+                        <div class="flex items-center gap-1.5">
+                            <button onclick="copyDecodedText()" class="text-xs font-medium bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5">
+                                <i data-lucide="copy" class="w-3.5 h-3.5"></i>
+                                <span>디코딩 결과 복사</span>
+                            </button>
+                        </div>
+                    </div>
+                    <textarea
+                        id="decodedOutput"
+                        rows="6"
+                        readonly
+                        placeholder="디코딩된 결과가 여기에 표시됩니다."
+                        class="w-full flex-1 bg-slate-50 dark:bg-slate-950/70 border border-slate-200 dark:border-slate-800 rounded-xl p-3.5 font-mono text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none resize-y transition-all"
+                    ></textarea>
+                    <div class="mt-2.5 flex items-center justify-between text-xs text-slate-400">
+                        <span id="decodeMetaInfo">대기 중</span>
+                        <span id="outputCharCount">0자</span>
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- 최근 디코딩 기록 섹션 -->
+            <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 sm:p-6 shadow-sm">
+                <div class="flex items-center justify-between mb-4">
+                    <div class="flex items-center gap-2">
+                        <i data-lucide="history" class="w-5 h-5 text-blue-500"></i>
+                        <h3 class="font-bold text-slate-900 dark:text-white text-base">최근 디코딩 기록</h3>
+                        <span id="historyCountBadge" class="text-xs px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 font-medium">0</span>
+                    </div>
+                    <button id="clearHistoryBtn" onclick="clearAllHistory()" class="text-xs text-slate-400 hover:text-rose-500 px-2.5 py-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors flex items-center gap-1">
+                        <i data-lucide="trash" class="w-3.5 h-3.5"></i>
+                        <span>기록 전체 삭제</span>
+                    </button>
+                </div>
+
+                <div id="historyEmptyState" class="text-center py-8 text-slate-400 dark:text-slate-500 text-sm">
+                    <i data-lucide="inbox" class="w-8 h-8 mx-auto mb-2 opacity-50"></i>
+                    <p>아직 디코딩한 기록이 없습니다.</p>
+                    <p class="text-xs mt-1">변환된 URL 및 텍스트가 이 브라우저에 안전하게 자동 저장됩니다.</p>
+                </div>
+
+                <div id="historyList" class="space-y-2.5 hidden"></div>
+            </div>
+
+        </div>
+
+        <!-- ==================== 2. 인코딩 도구 탭 섹션 ==================== -->
+        <div id="sectionEncode" class="hidden space-y-6">
+            <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 sm:p-6 shadow-sm space-y-5">
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div>
+                        <h2 class="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                            <i data-lucide="lock" class="w-5 h-5 text-indigo-500"></i>
+                            <span>텍스트 / URL Base64 인코더</span>
+                        </h2>
+                        <p class="text-sm text-slate-500 dark:text-slate-400 mt-0.5">일반 URL이나 한글 텍스트를 UTF-8 안전 Base64 문자열로 변환합니다.</p>
+                    </div>
+                    <label class="flex items-center gap-2 cursor-pointer text-xs sm:text-sm font-medium text-slate-600 dark:text-slate-300 bg-slate-50 dark:bg-slate-800 px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700">
+                        <input type="checkbox" id="urlSafeEncodeToggle" onchange="runEncoder()" class="rounded text-blue-600 focus:ring-blue-500">
+                        <span>URL-Safe 포맷 적용 (<code class="font-mono">-_</code> 및 패딩 제거)</span>
+                    </label>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <!-- 인코딩할 원본 입력 -->
+                    <div class="flex flex-col">
+                        <div class="flex items-center justify-between mb-2">
+                            <label for="encodeInput" class="text-sm font-semibold text-slate-700 dark:text-slate-300">원본 텍스트 또는 URL</label>
+                            <button onclick="document.getElementById('encodeInput').value=''; runEncoder();" class="text-xs text-slate-400 hover:text-rose-500">지우기</button>
+                        </div>
+                        <textarea
+                            id="encodeInput"
+                            rows="6"
+                            placeholder="예: https://www.google.com/search?q=베이스64"
+                            oninput="runEncoder()"
+                            class="w-full bg-slate-50 dark:bg-slate-950/70 border border-slate-200 dark:border-slate-800 rounded-xl p-3.5 font-mono text-sm text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 resize-y"
+                        ></textarea>
+                    </div>
+
+                    <!-- 인코딩 결과 출력 -->
+                    <div class="flex flex-col">
+                        <div class="flex items-center justify-between mb-2">
+                            <label for="encodeOutput" class="text-sm font-semibold text-slate-700 dark:text-slate-300">Base64 인코딩 결과</label>
+                            <div class="flex items-center gap-2">
+                                <button onclick="sendEncodedToDecoder()" class="text-xs font-medium text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1">
+                                    <i data-lucide="arrow-left-right" class="w-3.5 h-3.5"></i>
+                                    <span>디코더로 보내기</span>
+                                </button>
+                                <button onclick="copyEncodedText()" class="text-xs font-medium bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-1 rounded-lg transition-colors flex items-center gap-1">
+                                    <i data-lucide="copy" class="w-3.5 h-3.5"></i>
+                                    <span>결과 복사</span>
+                                </button>
+                            </div>
+                        </div>
+                        <textarea
+                            id="encodeOutput"
+                            rows="6"
+                            readonly
+                            placeholder="인코딩된 Base64 문자열이 여기에 표시됩니다."
+                            class="w-full bg-slate-50 dark:bg-slate-950/70 border border-slate-200 dark:border-slate-800 rounded-xl p-3.5 font-mono text-sm text-slate-900 dark:text-slate-100 focus:outline-none resize-y"
+                        ></textarea>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- 하단 푸터 -->
+    <footer class="border-t border-slate-200 dark:border-slate-800/80 py-5 px-4 text-center text-xs text-slate-400 dark:text-slate-500">
+        <div class="max-w-4xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2">
+            <p>모든 Base64 디코딩 및 인코딩 작업은 서버 전송 없이 브라우저 내에서 즉시 처리됩니다.</p>
+            <p class="font-mono">단축키: <kbd class="px-1.5 py-0.5 rounded bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300">Ctrl+V</kbd> 붙여넣기 · <kbd class="px-1.5 py-0.5 rounded bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300">Enter</kbd> 감지된 URL 열기</p>
+        </div>
+    </footer>
+
+    <!-- 토스트 알림 컨테이너 -->
+    <div id="toastContainer" class="fixed bottom-5 right-5 z-50 flex flex-col gap-2 max-w-sm w-full pointer-events-none px-4 sm:px-0"></div>
+
+    <script>
+        // ==========================================
+        // 상태 관리 및 상수
+        // ==========================================
+        const STORAGE_KEY_HISTORY = 'b64_url_launcher_history_v1';
+        const STORAGE_KEY_AUTO_OPEN = 'b64_url_launcher_auto_open_v1';
+        const STORAGE_KEY_THEME = 'b64_url_launcher_theme_v1';
+
+        let currentDetectedUrls = [];
+        let historyItems = [];
+        let manualInputTimer = null;
+
+        // ==========================================
+        // 초기화
+        // ==========================================
+        window.addEventListener('DOMContentLoaded', () => {
+            initTheme();
+            loadAutoOpenSetting();
+            loadHistory();
+            lucide.createIcons();
+            checkUrlParamsOnLoad();
+
+            // 전역 붙여넣기 이벤트 리스너 (입력창 외부에서 Ctrl+V 했을 때도 즉시 작동)
+            document.addEventListener('paste', (e) => {
+                const activeTag = document.activeElement ? document.activeElement.tagName.toLowerCase() : '';
+                const activeId = document.activeElement ? document.activeElement.id : '';
+
+                // 인코더 입력창에 포커스되어 있을 때는 기본 붙여넣기 허용
+                if (activeId === 'encodeInput') return;
+
+                // 그 외의 경우 클립보드 데이터를 가로채서 바로 디코딩 수행
+                const pastedData = (e.clipboardData || window.clipboardData).getData('text');
+                if (pastedData) {
+                    e.preventDefault();
+                    switchTab('decode');
+                    const inputEl = document.getElementById('base64Input');
+                    inputEl.value = pastedData;
+                    processBase64Input(pastedData, { fromPaste: true, saveToHistory: true });
+                }
+            });
+
+            // Enter 키로 감지된 첫 번째 URL 바로 열기 (입력창 포커스 중이 아닐 때)
+            document.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter' && currentDetectedUrls.length > 0) {
+                    const activeTag = document.activeElement ? document.activeElement.tagName.toLowerCase() : '';
+                    if (activeTag !== 'textarea' && activeTag !== 'input') {
+                        e.preventDefault();
+                        window.open(currentDetectedUrls[0], '_blank', 'noopener,noreferrer');
+                        showToast('새 탭에서 URL을 열었습니다.', 'success');
+                    }
+                }
+            });
+        });
+
+        // ==========================================
+        // 테마 & 설정 관리
+        // ==========================================
+        function initTheme() {
+            const savedTheme = localStorage.getItem(STORAGE_KEY_THEME);
+            if (savedTheme === 'light') {
+                document.documentElement.classList.remove('dark');
+            } else {
+                document.documentElement.classList.add('dark');
+            }
+        }
+
+        function toggleTheme() {
+            const isDark = document.documentElement.classList.toggle('dark');
+            localStorage.setItem(STORAGE_KEY_THEME, isDark ? 'dark' : 'light');
+        }
+
+        // URL 쿼리 파라미터(?q=... 또는 ?b64=...) 및 해시(#...) 자동 감지
+        function checkUrlParamsOnLoad() {
+            const params = new URLSearchParams(window.location.search);
+            const queryB64 = params.get('q') || params.get('b64') || params.get('text') || (window.location.hash ? decodeURIComponent(window.location.hash.slice(1)) : '');
+            if (queryB64 && queryB64.trim()) {
+                const inputEl = document.getElementById('base64Input');
+                inputEl.value = queryB64.trim();
+                processBase64Input(queryB64.trim(), { fromPaste: true, saveToHistory: true });
+            }
+        }
+
+        function loadAutoOpenSetting() {
+            const saved = localStorage.getItem(STORAGE_KEY_AUTO_OPEN);
+            document.getElementById('autoOpenToggle').checked = saved === 'true';
+        }
+
+        function saveAutoOpenSetting() {
+            const checked = document.getElementById('autoOpenToggle').checked;
+            localStorage.setItem(STORAGE_KEY_AUTO_OPEN, checked ? 'true' : 'false');
+            showToast(
+                checked ? '클립보드 붙여넣기 시 감지된 URL을 자동으로 엽니다.' : 'URL 자동 열기가 해제되었습니다.',
+                'info'
+            );
+        }
+
+        function switchTab(tab) {
+            const sectionDecode = document.getElementById('sectionDecode');
+            const sectionEncode = document.getElementById('sectionEncode');
+            const tabBtnDecode = document.getElementById('tabBtnDecode');
+            const tabBtnEncode = document.getElementById('tabBtnEncode');
+
+            if (tab === 'decode') {
+                sectionDecode.classList.remove('hidden');
+                sectionEncode.classList.add('hidden');
+                tabBtnDecode.className = 'px-2.5 sm:px-3 py-1.5 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm transition-all whitespace-nowrap';
+                tabBtnEncode.className = 'px-2.5 sm:px-3 py-1.5 rounded-lg text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-all whitespace-nowrap';
+            } else {
+                sectionDecode.classList.add('hidden');
+                sectionEncode.classList.remove('hidden');
+                tabBtnEncode.className = 'px-2.5 sm:px-3 py-1.5 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm transition-all whitespace-nowrap';
+                tabBtnDecode.className = 'px-2.5 sm:px-3 py-1.5 rounded-lg text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-all whitespace-nowrap';
+            }
+        }
+
+        // ==========================================
+        // 클립보드 읽기 및 샘플 로드
+        // ==========================================
+        async function pasteFromClipboard() {
+            try {
+                if (!navigator.clipboard || !navigator.clipboard.readText) {
+                    throw new Error('Clipboard API Not Supported');
+                }
+                const text = await navigator.clipboard.readText();
+                if (!text || !text.trim()) {
+                    showToast('클립보드가 비어 있거나 텍스트가 없습니다.', 'warning');
+                    document.getElementById('base64Input').focus();
+                    return;
+                }
+                const inputEl = document.getElementById('base64Input');
+                inputEl.value = text;
+                processBase64Input(text, { fromPaste: true, saveToHistory: true });
+            } catch (err) {
+                // iFrame 권한 제한 또는 브라우저 권한 거부 시 안내 후 텍스트 영역 포커스
+                const inputEl = document.getElementById('base64Input');
+                inputEl.focus();
+                showToast('브라우저 권한 정책으로 인해 입력창에 직접 Ctrl+V (또는 Cmd+V)를 눌러주세요.', 'info');
+            }
+        }
+
+        function loadSampleBase64() {
+            const samples = [
+                'aHR0cHM6Ly93d3cuZ29vZ2xlLmNvbS9zZWFyY2g/cT1CYXNlNjQrJUVCJTk0JThDJUVDJUJEJTk0JUVCJTk1JTk4',
+                'aHR0cHM6Ly9naXRodWIuY29tL3RvcHZhbHVl',
+                '7JWI64WV7LmY7IS47JqUISBCYXNlNjQg66eB6recIOyEuO2KueuLinkg7Y6Y7J207KeA7JeQIOyYpOyLoCDaHR0cHM6Ly9uYXZlci5jb20g67CU66Gc6rCA7riw'
+            ];
+            // 깔끔한 샘플 하나 선택
+            const sample = 'aHR0cHM6Ly93d3cuZ29vZ2xlLmNvbS9zZWFyY2g/cT1CYXNlNjQrJUVCJTk0JThDJUVDJUJEJTk0JUVCJTk1JTk4';
+            document.getElementById('base64Input').value = sample;
+            processBase64Input(sample, { fromPaste: false, saveToHistory: true });
+            showToast('샘플 Base64 URL을 불러와 디코딩했습니다.', 'info');
+        }
+
+        // ==========================================
+        // UTF-8 안전 Base64 디코딩 및 다중 토큰 분석
+        // ==========================================
+        function tryDecodeSingleBase64(rawStr) {
+            if (!rawStr) return null;
+            let cleaned = rawStr.trim();
+
+            // 만약 이미 일반 URL이면 그대로 반환하지 않고 null 반환 (별도 처리)
+            if (/^https?:\/\//i.test(cleaned)) {
+                return null;
+            }
+
+            // 공백 제거
+            cleaned = cleaned.replace(/\s+/g, '');
+            if (cleaned.length < 4) return null;
+
+            // URL-Safe Base64 변환 (- -> +, _ -> /)
+            cleaned = cleaned.replace(/-/g, '+').replace(/_/g, '/');
+
+            // Base64 유효 문자 검사
+            if (!/^[A-Za-z0-9+/]+={0,2}$/.test(cleaned)) {
+                return null;
+            }
+
+            // 패딩(=) 보정
+            const mod = cleaned.length % 4;
+            if (mod === 1) return null; // 유효하지 않은 Base64 길이
+            if (mod === 2) cleaned += '==';
+            else if (mod === 3) cleaned += '=';
+
+            try {
+                const binaryString = atob(cleaned);
+                const bytes = new Uint8Array(binaryString.length);
+                for (let i = 0; i < binaryString.length; i++) {
+                    bytes[i] = binaryString.charCodeAt(i);
+                }
+                // UTF-8 디코딩 (fatal: true로 깨진 바이트열 감지)
+                const decoder = new TextDecoder('utf-8', { fatal: true });
+                const decoded = decoder.decode(bytes);
+
+                // 제어 문자(탭, 줄바꿈 제외)가 과도하게 많으면 바이너리거나 잘못된 텍스트로 판단
+                let controlChars = 0;
+                for (let i = 0; i < decoded.length; i++) {
+                    const code = decoded.charCodeAt(i);
+                    if ((code < 32 && code !== 9 && code !== 10 && code !== 13) || code === 65533) {
+                        controlChars++;
+                    }
+                }
+                if (controlChars > 0) return null;
+
+                return decoded;
+            } catch (e) {
+                return null;
+            }
+        }
+
+        function smartDecodeInput(rawInput) {
+            const trimmed = rawInput.trim();
+            if (!trimmed) {
+                return { success: false, decodedText: '', mode: 'empty' };
+            }
+
+            // 1. 전체 문자열을 하나의 Base64로 먼저 시도 (줄바꿈으로 나뉜 긴 Base64 포함)
+            const wholeDecoded = tryDecodeSingleBase64(trimmed);
+            if (wholeDecoded !== null) {
+                return { success: true, decodedText: wholeDecoded, mode: 'single' };
+            }
+
+            // 2. 줄 단위로 나누어 각각 Base64 디코딩 시도 (여러 개의 Base64가 줄바꿈으로 들어온 경우)
+            const lines = trimmed.split(/\r?\n/);
+            let anyDecoded = false;
+            const decodedLines = lines.map(line => {
+                const lineTrimmed = line.trim();
+                if (!lineTrimmed) return '';
+                const d = tryDecodeSingleBase64(lineTrimmed);
+                if (d !== null) {
+                    anyDecoded = true;
+                    return d;
+                }
+                // 줄 안에 공백으로 구분된 Base64 토큰이 있는지 확인
+                const tokens = lineTrimmed.split(/\s+/);
+                if (tokens.length > 1) {
+                    const convertedTokens = tokens.map(tok => {
+                        const td = tryDecodeSingleBase64(tok);
+                        if (td !== null) {
+                            anyDecoded = true;
+                            return td;
+                        }
+                        return tok;
+                    });
+                    return convertedTokens.join(' ');
+                }
+                return lineTrimmed;
+            });
+
+            if (anyDecoded) {
+                return { success: true, decodedText: decodedLines.join('\n'), mode: 'multi' };
+            }
+
+            // 3. 만약 입력값 자체가 이미 평문 URL을 포함하고 있는 경우 안내
+            if (/https?:\/\/[^\s"'<>]+/i.test(trimmed)) {
+                return { success: true, decodedText: trimmed, mode: 'already_plain_url' };
+            }
+
+            return { success: false, decodedText: '', mode: 'invalid' };
+        }
+
+        // 텍스트 내에서 URL 추출
+        function extractUrls(text) {
+            if (!text) return [];
+            const results = [];
+            const trimmed = text.trim();
+
+            // 전체 텍스트가 단일 URL인 경우
+            if (/^https?:\/\/\S+$/i.test(trimmed)) {
+                try {
+                    const u = new URL(trimmed);
+                    return [u.href];
+                } catch (e) {}
+            }
+
+            // 텍스트 내부에 포함된 http:// 또는 https:// URL 추출
+            const urlRegex = /https?:\/\/[^\s"'<>`]+/gi;
+            const matches = text.match(urlRegex) || [];
+            matches.forEach(rawUrl => {
+                // 끝에 붙은 구두점 제거
+                const cleanedUrl = rawUrl.replace(/[.,;!?)\]]+$/, '');
+                try {
+                    const parsed = new URL(cleanedUrl);
+                    if (!results.includes(parsed.href)) {
+                        results.push(parsed.href);
+                    }
+                } catch (e) {}
+            });
+
+            return results;
+        }
+
+        // ==========================================
+        // 메인 처리 파이프라인
+        // ==========================================
+        function handleManualInput() {
+            const raw = document.getElementById('base64Input').value;
+            processBase64Input(raw, { fromPaste: false, saveToHistory: false });
+
+            // 타이핑 멈춘 뒤 유효한 결과면 히스토리에 저장
+            clearTimeout(manualInputTimer);
+            manualInputTimer = setTimeout(() => {
+                const currentVal = document.getElementById('base64Input').value;
+                if (currentVal.trim()) {
+                    const result = smartDecodeInput(currentVal);
+                    if (result.success && result.mode !== 'already_plain_url') {
+                        const urls = extractUrls(result.decodedText);
+                        addToHistory(currentVal.trim(), result.decodedText, urls);
+                    }
+                }
+            }, 1200);
+        }
+
+        function processBase64Input(rawText, options = { fromPaste: false, saveToHistory: false }) {
+            const outputEl = document.getElementById('decodedOutput');
+            const statusBadge = document.getElementById('inputStatusBadge');
+            const metaInfo = document.getElementById('decodeMetaInfo');
+            const inputCount = document.getElementById('inputCharCount');
+            const outputCount = document.getElementById('outputCharCount');
+
+            inputCount.textContent = `${rawText.length}자`;
+
+            if (!rawText || !rawText.trim()) {
+                outputEl.value = '';
+                outputCount.textContent = '0자';
+                statusBadge.classList.add('hidden');
+                metaInfo.textContent = '대기 중';
+                updateUrlBanner([]);
+                return;
+            }
+
+            const result = smartDecodeInput(rawText);
+
+            if (!result.success) {
+                outputEl.value = '';
+                outputCount.textContent = '0자';
+                statusBadge.textContent = '유효하지 않은 Base64';
+                statusBadge.className = 'text-xs px-2 py-0.5 rounded-md font-medium bg-rose-100 dark:bg-rose-950/80 text-rose-600 dark:text-rose-400';
+                statusBadge.classList.remove('hidden');
+                metaInfo.textContent = '올바른 Base64 형식이 아닙니다.';
+                updateUrlBanner([]);
+                if (options.fromPaste) {
+                    showToast('유효한 Base64 텍스트로 디코딩할 수 없습니다.', 'error');
+                }
+                return;
+            }
+
+            // 디코딩 성공
+            outputEl.value = result.decodedText;
+            outputCount.textContent = `${result.decodedText.length}자`;
+
+            if (result.mode === 'already_plain_url') {
+                statusBadge.textContent = '일반 URL 감지됨';
+                statusBadge.className = 'text-xs px-2 py-0.5 rounded-md font-medium bg-amber-100 dark:bg-amber-950/80 text-amber-700 dark:text-amber-300';
+                metaInfo.textContent = '인코딩되지 않은 일반 텍스트/URL입니다.';
+            } else {
+                statusBadge.textContent = '디코딩 완료';
+                statusBadge.className = 'text-xs px-2 py-0.5 rounded-md font-medium bg-emerald-100 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-300';
+                metaInfo.textContent = result.mode === 'multi' ? '다중 라인 Base64 디코딩 완료' : 'UTF-8 Base64 디코딩 성공';
+            }
+            statusBadge.classList.remove('hidden');
+
+            // URL 감지 및 배너 업데이트
+            const urls = extractUrls(result.decodedText);
+            updateUrlBanner(urls);
+
+            // 히스토리 저장
+            if (options.saveToHistory && result.mode !== 'already_plain_url') {
+                addToHistory(rawText.trim(), result.decodedText, urls);
+            }
+
+            // 붙여넣기로 들어온 경우 알림 및 자동 열기 처리
+            if (options.fromPaste) {
+                if (urls.length > 0) {
+                    const autoOpen = document.getElementById('autoOpenToggle').checked;
+                    if (autoOpen) {
+                        window.open(urls[0], '_blank', 'noopener,noreferrer');
+                        showToast('URL이 감지되어 새 탭에서 자동으로 열렸습니다!', 'success');
+                    } else {
+                        showToast(`디코딩 완료! ${urls.length}개의 URL이 감지되었습니다.`, 'success');
+                    }
+                } else {
+                    showToast('클립보드 Base64 텍스트를 성공적으로 디코딩했습니다.', 'success');
+                }
+            }
+        }
+
+        // ==========================================
+        // URL 배너 렌더링
+        // ==========================================
+        function updateUrlBanner(urls) {
+            currentDetectedUrls = urls;
+            const banner = document.getElementById('urlDetectedBanner');
+            const primaryDisplay = document.getElementById('primaryUrlDisplay');
+            const btnNewTab = document.getElementById('btnOpenNewTab');
+            const btnCurrentTab = document.getElementById('btnOpenCurrentTab');
+            const countBadge = document.getElementById('urlCountBadge');
+            const multiContainer = document.getElementById('multipleUrlsContainer');
+            const multiList = document.getElementById('multipleUrlsList');
+
+            if (!urls || urls.length === 0) {
+                banner.classList.add('hidden');
+                return;
+            }
+
+            const primaryUrl = urls[0];
+            banner.classList.remove('hidden');
+            primaryDisplay.textContent = primaryUrl;
+            primaryDisplay.href = primaryUrl;
+            btnNewTab.href = primaryUrl;
+            btnCurrentTab.href = primaryUrl;
+            countBadge.textContent = `${urls.length}개`;
+
+            if (urls.length > 1) {
+                multiContainer.classList.remove('hidden');
+                multiList.innerHTML = '';
+                urls.forEach((u, idx) => {
+                    const row = document.createElement('div');
+                    row.className = 'flex items-center justify-between gap-2 bg-white/70 dark:bg-slate-900/70 px-3 py-2 rounded-lg border border-emerald-500/20 text-xs';
+                    row.innerHTML = `
+                        <span class="font-mono truncate text-slate-700 dark:text-slate-300 flex-1">${idx + 1}. ${escapeHtml(u)}</span>
+                        <div class="flex items-center gap-1.5 shrink-0">
+                            <a href="${escapeHtml(u)}" target="_blank" rel="noopener noreferrer" class="px-2.5 py-1 rounded bg-emerald-600 hover:bg-emerald-500 text-white font-medium transition-colors">새 탭 열기</a>
+                        </div>
+                    `;
+                    multiList.appendChild(row);
+                });
+            } else {
+                multiContainer.classList.add('hidden');
+            }
+        }
+
+        function clearDecodeFields() {
+            document.getElementById('base64Input').value = '';
+            processBase64Input('', { fromPaste: false, saveToHistory: false });
+            document.getElementById('base64Input').focus();
+        }
+
+        // ==========================================
+        // 복사 유틸리티 (iFrame 호환 폴백 포함)
+        // ==========================================
+        function copyToClipboardSafe(text, successMsg) {
+            if (!text) {
+                showToast('복사할 내용이 없습니다.', 'warning');
+                return;
+            }
+
+            const fallbackCopy = () => {
+                const tempTa = document.createElement('textarea');
+                tempTa.value = text;
+                tempTa.style.position = 'fixed';
+                tempTa.style.opacity = '0';
+                document.body.appendChild(tempTa);
+                tempTa.select();
+                try {
+                    document.execCommand('copy');
+                    showToast(successMsg, 'success');
+                } catch (err) {
+                    showToast('복사에 실패했습니다.', 'error');
+                }
+                document.body.removeChild(tempTa);
+            };
+
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(text).then(() => {
+                    showToast(successMsg, 'success');
+                }).catch(() => {
+                    fallbackCopy();
+                });
+            } else {
+                fallbackCopy();
+            }
+        }
+
+        function copyDecodedText() {
+            const val = document.getElementById('decodedOutput').value;
+            copyToClipboardSafe(val, '디코딩된 결과를 클립보드에 복사했습니다.');
+        }
+
+        function copyPrimaryUrl() {
+            if (currentDetectedUrls.length > 0) {
+                copyToClipboardSafe(currentDetectedUrls[0], 'URL을 클립보드에 복사했습니다.');
+            }
+        }
+
+        // ==========================================
+        // Base64 인코더 도구
+        // ==========================================
+        function encodeUtf8ToBase64(str, urlSafe = false) {
+            const encoder = new TextEncoder();
+            const bytes = encoder.encode(str);
+            let binary = '';
+            for (let i = 0; i < bytes.length; i++) {
+                binary += String.fromCharCode(bytes[i]);
+            }
+            let b64 = btoa(binary);
+            if (urlSafe) {
+                b64 = b64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+            }
+            return b64;
+        }
+
+        function runEncoder() {
+            const raw = document.getElementById('encodeInput').value;
+            const urlSafe = document.getElementById('urlSafeEncodeToggle').checked;
+            const outEl = document.getElementById('encodeOutput');
+
+            if (!raw) {
+                outEl.value = '';
+                return;
+            }
+            try {
+                outEl.value = encodeUtf8ToBase64(raw, urlSafe);
+            } catch (e) {
+                outEl.value = '인코딩 중 오류가 발생했습니다.';
+            }
+        }
+
+        function copyEncodedText() {
+            const val = document.getElementById('encodeOutput').value;
+            copyToClipboardSafe(val, 'Base64 인코딩 결과를 복사했습니다.');
+        }
+
+        function sendEncodedToDecoder() {
+            const val = document.getElementById('encodeOutput').value;
+            if (!val) {
+                showToast('먼저 인코딩할 텍스트를 입력해주세요.', 'warning');
+                return;
+            }
+            switchTab('decode');
+            document.getElementById('base64Input').value = val;
+            processBase64Input(val, { fromPaste: false, saveToHistory: true });
+            showToast('인코딩된 값을 디코더로 불러왔습니다.', 'info');
+        }
+
+        // ==========================================
+        // 최근 기록 (LocalStorage) 관리
+        // ==========================================
+        function loadHistory() {
+            try {
+                const raw = localStorage.getItem(STORAGE_KEY_HISTORY);
+                historyItems = raw ? JSON.parse(raw) : [];
+            } catch (e) {
+                historyItems = [];
+            }
+            renderHistory();
+        }
+
+        function saveHistory() {
+            try {
+                localStorage.setItem(STORAGE_KEY_HISTORY, JSON.stringify(historyItems));
+            } catch (e) {}
+        }
+
+        function addToHistory(base64Str, decodedStr, urls) {
+            if (!decodedStr.trim()) return;
+
+            // 동일한 디코딩 결과가 있으면 중복 제거 후 최신으로 올림
+            historyItems = historyItems.filter(item => item.decoded !== decodedStr);
+
+            const newItem = {
+                id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+                base64: base64Str.length > 300 ? base64Str.slice(0, 300) + '...' : base64Str,
+                fullBase64: base64Str,
+                decoded: decodedStr,
+                urls: urls || [],
+                timestamp: new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+            };
+
+            historyItems.unshift(newItem);
+            if (historyItems.length > 15) {
+                historyItems = historyItems.slice(0, 15);
+            }
+
+            saveHistory();
+            renderHistory();
+        }
+
+        function deleteHistoryItem(id) {
+            historyItems = historyItems.filter(item => item.id !== id);
+            saveHistory();
+            renderHistory();
+        }
+
+        function clearAllHistory() {
+            if (historyItems.length === 0) return;
+            historyItems = [];
+            saveHistory();
+            renderHistory();
+            showToast('모든 최근 기록이 삭제되었습니다.', 'info');
+        }
+
+        function restoreFromHistory(id) {
+            const item = historyItems.find(i => i.id === id);
+            if (!item) return;
+            document.getElementById('base64Input').value = item.fullBase64 || item.base64;
+            processBase64Input(item.fullBase64 || item.base64, { fromPaste: false, saveToHistory: false });
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        function renderHistory() {
+            const emptyState = document.getElementById('historyEmptyState');
+            const listEl = document.getElementById('historyList');
+            const countBadge = document.getElementById('historyCountBadge');
+            const clearBtn = document.getElementById('clearHistoryBtn');
+
+            countBadge.textContent = historyItems.length;
+
+            if (historyItems.length === 0) {
+                emptyState.classList.remove('hidden');
+                listEl.classList.add('hidden');
+                clearBtn.classList.add('opacity-50', 'pointer-events-none');
+                return;
+            }
+
+            emptyState.classList.add('hidden');
+            listEl.classList.remove('hidden');
+            clearBtn.classList.remove('opacity-50', 'pointer-events-none');
+            listEl.innerHTML = '';
+
+            historyItems.forEach(item => {
+                const hasUrl = item.urls && item.urls.length > 0;
+                const primaryUrl = hasUrl ? item.urls[0] : null;
+
+                const card = document.createElement('div');
+                card.className = 'group bg-slate-50 dark:bg-slate-800/50 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200/80 dark:border-slate-800 rounded-xl p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 transition-all';
+
+                card.innerHTML = `
+                    <div class="min-w-0 flex-1 cursor-pointer" onclick="restoreFromHistory('${item.id}')">
+                        <div class="flex items-center gap-2 mb-1">
+                            <span class="px-2 py-0.5 text-[11px] font-semibold rounded-md ${hasUrl ? 'bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300' : 'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300'}">
+                                ${hasUrl ? 'URL' : '텍스트'}
+                            </span>
+                            <span class="font-mono text-xs text-slate-400 truncate">${escapeHtml(item.base64)}</span>
+                            <span class="text-[11px] text-slate-400 ml-auto sm:ml-0">${item.timestamp}</span>
+                        </div>
+                        <p class="font-mono text-sm font-medium text-slate-800 dark:text-slate-100 truncate">
+                            ${escapeHtml(item.decoded)}
+                        </p>
+                    </div>
+                    <div class="flex items-center gap-2 shrink-0 self-end sm:self-center">
+                        ${hasUrl ? `
+                            <a href="${escapeHtml(primaryUrl)}" target="_blank" rel="noopener noreferrer" class="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold flex items-center gap-1 shadow-sm transition-colors">
+                                <span>바로가기</span>
+                                <i data-lucide="external-link" class="w-3.5 h-3.5"></i>
+                            </a>
+                        ` : ''}
+                        <button onclick="copyToClipboardSafe(${ JSON.stringify(item.decoded).replace(/"/g, '&quot;') }, '결과를 복사했습니다.')" class="p-1.5 rounded-lg text-slate-500 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors" title="결과 복사">
+                            <i data-lucide="copy" class="w-4 h-4"></i>
+                        </button>
+                        <button onclick="deleteHistoryItem('${item.id}')" class="p-1.5 rounded-lg text-slate-400 hover:text-rose-500 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors" title="삭제">
+                            <i data-lucide="x" class="w-4 h-4"></i>
+                        </button>
+                    </div>
+                `;
+                listEl.appendChild(card);
+            });
+
+            lucide.createIcons();
+        }
+
+        // ==========================================
+        // 토스트 메시지 및 보안 유틸리티
+        // ==========================================
+        function showToast(message, type = 'info') {
+            const container = document.getElementById('toastContainer');
+            const toast = document.createElement('div');
+
+            const colorStyles = {
+                success: 'bg-emerald-600 text-white border-emerald-500',
+                error: 'bg-rose-600 text-white border-rose-500',
+                warning: 'bg-amber-500 text-white border-amber-400',
+                info: 'bg-slate-800 dark:bg-slate-700 text-white border-slate-700'
+            };
+
+            toast.className = `pointer-events-auto flex items-center justify-between gap-3 px-4 py-3 rounded-xl shadow-lg border text-sm font-medium transition-all duration-300 transform translate-y-2 opacity-0 ${colorStyles[type] || colorStyles.info}`;
+            toast.innerHTML = `
+                <span>${escapeHtml(message)}</span>
+                <button onclick="this.parentElement.remove()" class="opacity-70 hover:opacity-100">✕</button>
+            `;
+
+            container.appendChild(toast);
+
+            requestAnimationFrame(() => {
+                toast.classList.remove('translate-y-2', 'opacity-0');
+            });
+
+            setTimeout(() => {
+                toast.classList.add('opacity-0', 'translate-y-2');
+                setTimeout(() => toast.remove(), 300);
+            }, 3200);
+        }
+
+        function escapeHtml(str) {
+            return String(str)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
+        }
+    </script>
+</body>
+</html>
